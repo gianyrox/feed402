@@ -40,6 +40,13 @@ Runs on Cloudflare Workers or any Node host. MIT code, CC0 spec.
 3. **A citation envelope** so every paid response carries provenance — the
    one thing Viatika's middleware can't bolt on after the fact.
 4. **A demo to show investors and prospects** in under 60 seconds.
+5. **An extension hook** (`citation.type`) so the envelope can carry not
+   just literature references but also verified real-world capture sessions
+   — the AGFarms DerbyFish BHRV pipeline slots in as the first reference
+   VDS (Verified Data Session) merchant without a spec rewrite. See
+   `SPEC.md §3.1`. This turns feed402 from "a data rail for PubMed-shaped
+   corpora" into "a data rail for any agent-consumable evidence," which
+   materially widens Viatika's addressable supply side at zero v0.1 cost.
 
 ## What it does NOT do (deferred past v0.1)
 

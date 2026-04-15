@@ -71,6 +71,57 @@ The `citation` block is **mandatory**. No citation, not feed402.
 This is the one thing Viatika's middleware can't retrofit — it has to
 live inside the response envelope.
 
+### 3.1 Citation types (extension point)
+
+The citation block has an optional `type` field. Default is `source` (a
+standard literature/record reference, shape shown above). Providers may
+emit other types; agents that don't recognize a type SHOULD treat it as
+`source` and use whatever fields they can.
+
+One type is defined in v0.0.1 beyond `source`:
+
+**`vds` — Verified Data Session.** A wallet-signed bundle produced by
+running a prescribed capture script on a mobile device (phone, tablet,
+wearable). Each script defines a sequence of sensor-backed steps plus
+cross-step consistency rules; a verifier adjudicates and attaches a
+confidence-scored finding set. Output is structured JSON designed for
+agent consumption — not human display. Reference implementation:
+DerbyFish's `BHRV` (Bump, Hero, Release, Validate) catch-verification
+pipeline, shipping as `derbyfish.bhrv.v2`.
+
+```json
+"citation": {
+  "type": "vds",
+  "script_id": "derbyfish.bhrv.v2",
+  "session_id": "sess_01JBX...",
+  "captured_by": "0xwallet...",
+  "captured_at": "2026-04-15T14:22:11Z",
+  "verifier": "derbyfish-gaia-fishdection@0.6.3",
+  "verification": {
+    "status": "PASS",
+    "confidence": 0.94,
+    "findings": [
+      { "kind": "species",    "value": "Morone saxatilis", "confidence": 0.98 },
+      { "kind": "length_cm",  "value": 61.3,              "confidence": 0.95 }
+    ]
+  },
+  "onchain": "flow-mainnet:FishCardV1#12891",
+  "signature": "0xwallet..."
+}
+```
+
+The full step array, sensor hashes, and consistency-rule results live at
+`GET /vds/sessions/:session_id` on the provider (itself a feed402 endpoint).
+The citation block carries only the summary an agent needs to trust and
+re-cite the finding; fetching the full envelope is a separate, metered
+call. This keeps `insight`-tier responses small while leaving the full
+evidence chain one hop away.
+
+Future citation types (deferred to v0.2+): `attestation` (third-party
+signed claim), `measurement` (calibrated instrument reading), `observation`
+(timestamped human-entered field note). All live under the same extension
+rule — new `type` values are additive, never breaking.
+
 ## 4. Query tiers
 
 | Tier | Input | Output | Price signal |
