@@ -1,0 +1,85 @@
+# feed402
+
+**Paid data endpoints for AI agents, over x402.**
+
+A minimal reference implementation of the feed402 protocol: any data provider
+can serve discoverable, priced, cited data to an AI agent that pays over x402
+with a Base wallet.
+
+- Protocol: [`SPEC.md`](./SPEC.md)
+- Project brief: [`BRIEF.md`](./BRIEF.md)
+- Hours log: [`TIMELOG.md`](./TIMELOG.md)
+
+**Status:** v0.1 draft. Local repo. No public git remote yet.
+**Author:** Gianangelo Dichio · MIT code · CC0 spec.
+
+## The 60-second pitch
+
+x402 gives you a payment rail. It doesn't give you a *merchant template*.
+feed402 is that template:
+
+1. A static manifest at `/.well-known/feed402.json` so agents can discover you.
+2. Three query tiers — `raw`, `query`, `insight` — so agents pick the cheapest
+   tier that answers their question.
+3. A mandatory `citation` block in every paid response so answers are
+   re-citable, not opaque.
+4. An additive extension hook (`citation.type`) so the same rail can carry
+   literature, verified capture sessions, attestations, measurements — without
+   breaking existing agents.
+
+## Run the demo
+
+```bash
+npm install
+./demo.sh
+```
+
+That boots the reference provider, runs the reference agent, and prints the
+full flow: discovery → 402 challenge → paid 200 + envelope.
+
+## What's in the repo
+
+| File | Purpose |
+|---|---|
+| `SPEC.md` | The protocol. One page. |
+| `types.ts` | Shared TypeScript types for manifest + envelope. |
+| `server.ts` | Reference provider (Hono, in-memory corpus). |
+| `agent.ts` | Reference buyer. |
+| `demo.sh` | End-to-end one-command demo. |
+| `BRIEF.md` | Why this exists, what it buys the ecosystem. |
+
+## What this is not (yet)
+
+- Not a CLI scaffold — v0.2.
+- Not a production dataset — bring your own.
+- Not a registry — v0.2+.
+- Not a real x402 payment verifier — the `x-payment` header is stubbed in
+  v0.1. Plug in an x402 facilitator check where `verifyPayment` is defined
+  in `server.ts`.
+
+## Forking as a real data provider
+
+1. Replace the `CORPUS` constant in `server.ts` with your real data source.
+2. Replace `verifyPayment` with a real x402 facilitator check against your
+   wallet address.
+3. Replace the stub `stubPaymentHeader` in `agent.ts` with `viem` signing
+   against a real Base wallet.
+4. Adjust the manifest in the `/.well-known/feed402.json` handler to reflect
+   your prices, chain, wallet, and advertised citation types.
+5. Ship.
+
+That's it. ~200 LOC of protocol code separates you from being a live feed402
+merchant on Base.
+
+## Related
+
+- [x402 protocol](https://www.x402.org/) — the payment rail this sits on.
+- `~/agfarms/x402-research-gateway/` — a production-ish Go implementation of
+  a paid research gateway (PubMed, Semantic Scholar, OpenAlex, ClinicalTrials,
+  PubChem, Kruse corpus) on Base Sepolia by the same author. Not yet
+  feed402-compliant (missing `/.well-known/feed402.json`, citation envelope,
+  insight tier) — candidate for upgrade in v0.2.
+- `~/agfarms/bucket-foundation/` — Bucket Foundation, the nonprofit canon
+  project that will consume feed402 merchants as citable research inputs.
+- DerbyFish BHRV — the reference VDS (Verified Data Session) merchant; see
+  `SPEC.md §3.1`.
