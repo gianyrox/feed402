@@ -10,8 +10,20 @@ with a Base wallet.
 - Project brief: [`BRIEF.md`](./BRIEF.md)
 - Hours log: [`TIMELOG.md`](./TIMELOG.md)
 
-**Status:** v0.1 draft. Local repo. No public git remote yet.
+**Status:** v0.2 draft. Local repo. No public git remote yet.
 **Author:** Gianangelo Dichio · MIT code · CC0 spec.
+
+### What's new in v0.2
+
+v0.2 is fully backwards-compatible with v0.1 — every added field is optional.
+Two additions:
+
+1. **Optional index manifest** at `Manifest.index` — merchants declare their
+   retrieval scheme (dense / sparse / hybrid, embedding model, chunk strategy,
+   corpus fingerprint) for citation reproducibility. See [`SPEC.md §4`](./SPEC.md#4-index-manifest-v02-optional).
+2. **Optional retrieval provenance** on `source` citations — `chunk_id` plus
+   `retrieval.{model, score, rank}` so downstream agents can re-verify a hit
+   against the same corpus + model. See [`SPEC.md §3.2`](./SPEC.md#32-retrieval-provenance-v02-optional).
 
 ## The 60-second pitch
 
@@ -26,6 +38,8 @@ feed402 is that template:
 4. An additive extension hook (`citation.type`) so the same rail can carry
    literature, verified capture sessions, attestations, measurements — without
    breaking existing agents.
+5. *(v0.2)* Merchants declare their retrieval scheme in the manifest so
+   citations are reproducible — not just referenceable — across providers.
 
 ## Run the demo
 

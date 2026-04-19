@@ -1,8 +1,14 @@
 /**
- * feed402 v0.1 — shared types
- * These mirror SPEC.md §1 (manifest) and §3 (envelope).
+ * feed402 v0.2 — shared types
+ * These mirror SPEC.md §1 (manifest), §3 (envelope), §4 (index manifest).
  * Keep this file in sync with the spec; it is intentionally small.
+ *
+ * v0.2 is fully backwards-compatible with v0.1: every new field is optional,
+ * and v0.1 consumers must ignore unknown fields per SPEC §2.3.
  */
+
+/** Canonical protocol version string emitted in `Manifest.spec`. */
+export const SPEC_VERSION = "feed402/0.2" as const;
 
 // ---------- §1: Discovery manifest ----------
 
@@ -17,7 +23,7 @@ export interface TierSpec {
 export interface Manifest {
   name: string;
   version: string;
-  /** Protocol version, e.g. "feed402/0.1". */
+  /** Protocol version, e.g. "feed402/0.2". Use the SPEC_VERSION constant. */
   spec: string;
   chain: "base" | "base-sepolia" | string;
   wallet: `0x${string}`;
@@ -26,11 +32,72 @@ export interface Manifest {
   citation_policy?: string;
   citation_types: CitationType[];
   contact?: string;
+  /**
+   * §4 (v0.2, optional) — retrieval index backing the `query` / `insight`
+   * tiers. Omitted by pure `raw` merchants or by providers that do not wish
+   * to expose retrieval internals.
+   */
+  index?: IndexManifest;
+}
+
+// ---------- §4: Index manifest (v0.2) ----------
+
+/**
+ * §4.1 extension point. v0.2 defines "dense" | "sparse" | "hybrid"; future
+ * revisions may add more. Unknown values are treated as opaque retrieval
+ * per SPEC §2.3.
+ */
+export type IndexType = "dense" | "sparse" | "hybrid" | string;
+
+export type ChunkKind = "token-window" | "paragraph" | "post" | "none" | string;
+
+export interface ChunkStrategy {
+  kind: ChunkKind;
+  /** Required when `kind === "token-window"`. Ignored otherwise. */
+  size?: number;
+  /** Required when `kind === "token-window"`. Ignored otherwise. */
+  overlap?: number;
+}
+
+export interface IndexManifest {
+  type: IndexType;
+  /**
+   * Embedding model identifier. MUST match `Citation.retrieval.model`
+   * in §3.2 envelopes. Sparse-only merchants SHOULD emit `"none"`.
+   */
+  model: string;
+  /** Embedding dimensionality. Required when type is "dense" or "hybrid". */
+  dim?: number;
+  /** Similarity metric. Required when type is "dense" or "hybrid". */
+  distance?: "cosine" | "dot" | "l2";
+  /** Total indexable units at `built_at`. */
+  chunks: number;
+  chunk_strategy: ChunkStrategy;
+  /**
+   * Hex SHA-256 fingerprint of the corpus at index time. Lets two
+   * merchants prove they indexed the same corpus.
+   */
+  corpus_sha256: string;
+  /** ISO-8601 timestamp of the build that produced this index. */
+  built_at: string;
 }
 
 // ---------- §3: Response envelope ----------
 
 export type CitationType = "source" | "vds" | string;
+
+/**
+ * §3.2 (v0.2) — optional retrieval provenance attached to source citations.
+ * Emitted only when the merchant ran an index lookup to produce the result.
+ */
+export interface RetrievalProvenance {
+  /** Same string emitted by `IndexManifest.model`. */
+  model: string;
+  /** Raw similarity score. Higher = more relevant. */
+  score: number;
+  /** Zero-based position in the result list for this request. */
+  rank: number;
+}
 
 export interface CitationSource {
   type: "source";
@@ -39,6 +106,16 @@ export interface CitationSource {
   retrieved_at: string; // ISO-8601
   license?: string;
   canonical_url?: string;
+  /**
+   * §3.2 (v0.2, optional). Stable chunk identifier in the form
+   * `<source_id>#c<n>`. Must round-trip stably for the same corpus version.
+   */
+  chunk_id?: string;
+  /**
+   * §3.2 (v0.2, optional). Retrieval provenance. Providers doing retrieval
+   * SHOULD emit this; pure `raw` merchants omit it.
+   */
+  retrieval?: RetrievalProvenance;
 }
 
 export interface CitationVDS {
