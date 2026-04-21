@@ -31,6 +31,12 @@ import {
   type TierName,
   type TierSpec,
 } from "./types.js";
+import { loadIndex, topK, type PersistedIndex, type SearchHit } from "./index-store.js";
+import {
+  OpenAIEmbedder,
+  MockEmbedder,
+  type Embedder,
+} from "./embedder.js";
 
 // ---------- Provider config ----------
 
@@ -106,16 +112,72 @@ function computeCorpusHash(papers: Paper[]): string {
   return h.digest("hex");
 }
 
-const INDEX_BUILT_AT = new Date().toISOString();
-const INDEX_MODEL = "none"; // sparse substring matcher — see §4.1
-const INDEX: IndexManifest = {
-  type: "sparse",
-  model: INDEX_MODEL,
-  chunks: CORPUS.length,
-  chunk_strategy: { kind: "post" }, // one chunk == one paper
-  corpus_sha256: computeCorpusHash(CORPUS),
-  built_at: INDEX_BUILT_AT,
-};
+// Try to load a pre-built dense index from disk (produced by
+// `npm run build-index` — see build-index.ts). When present the server
+// promotes /insight and /query (with `contains`) to real semantic
+// retrieval over the Kruse corpus; when absent we fall back to the
+// 3-paper in-memory demo CORPUS so the server still boots cold for the
+// spec demo.
+const INDEX_PATH = process.env.FEED402_INDEX_PATH ?? "index/kruse.json";
+const DENSE_INDEX: PersistedIndex | null = safeLoadIndex(INDEX_PATH);
+
+function safeLoadIndex(p: string): PersistedIndex | null {
+  try {
+    return loadIndex(p);
+  } catch (e) {
+    console.warn(`[feed402] failed to load dense index at ${p}:`, (e as Error).message);
+    return null;
+  }
+}
+
+const INDEX_BUILT_AT = DENSE_INDEX?.built_at ?? new Date().toISOString();
+const INDEX_MODEL = DENSE_INDEX?.model ?? "none";
+const INDEX: IndexManifest = DENSE_INDEX
+  ? {
+      type: "dense",
+      model: DENSE_INDEX.model,
+      dim: DENSE_INDEX.dim,
+      distance: DENSE_INDEX.distance,
+      chunks: DENSE_INDEX.chunks.length,
+      chunk_strategy: DENSE_INDEX.chunk_strategy,
+      corpus_sha256: DENSE_INDEX.corpus_sha256,
+      built_at: DENSE_INDEX.built_at,
+    }
+  : {
+      type: "sparse",
+      model: INDEX_MODEL,
+      chunks: CORPUS.length,
+      chunk_strategy: { kind: "post" },
+      corpus_sha256: computeCorpusHash(CORPUS),
+      built_at: INDEX_BUILT_AT,
+    };
+
+// Query embedder — used to embed the incoming question at request time.
+// Must match the model used to build DENSE_INDEX so the vectors live in
+// the same space; we pick it from the index's stored `model` string.
+const QUERY_EMBEDDER: Embedder | null = DENSE_INDEX ? pickQueryEmbedder(DENSE_INDEX) : null;
+
+function pickQueryEmbedder(idx: PersistedIndex): Embedder {
+  if (idx.model.startsWith("openai:")) {
+    const model = idx.model.slice("openai:".length);
+    const key = process.env.OPENAI_API_KEY;
+    if (!key) {
+      console.warn(
+        "[feed402] index was built with OpenAI but OPENAI_API_KEY is not set — falling back to mock query embedder (retrieval will be random)",
+      );
+      return new MockEmbedder(idx.dim);
+    }
+    return new OpenAIEmbedder({ apiKey: key, model });
+  }
+  return new MockEmbedder(idx.dim);
+}
+
+if (DENSE_INDEX) {
+  console.log(
+    `[feed402] loaded dense index: ${DENSE_INDEX.chunks.length} chunks, ` +
+      `model=${DENSE_INDEX.model}, corpus_sha256=${DENSE_INDEX.corpus_sha256.slice(0, 16)}...`,
+  );
+}
 
 /** §3.2 chunk id for a paper. One chunk per paper → always `#c0`. */
 function chunkIdOf(paper: Paper): string {
@@ -292,27 +354,78 @@ app.post("/query", (c) =>
   }),
 );
 
-// §5: /insight — NL summary + top-k (reference sparse retrieval)
-app.post("/insight", (c) =>
-  handleTier(c, "insight", (body) => {
-    const b = body as { question?: string };
-    if (!b.question) return null;
-    const q = b.question.toLowerCase();
-    // Rank the whole corpus by substring score; fall back to CORPUS[0] if nothing hits.
-    const ranked = CORPUS
-      .map((p) => ({ p, score: substringScore(p, q) }))
-      .sort((a, b2) => b2.score - a.score);
-    const top = ranked[0]?.score > 0 ? ranked[0].p : CORPUS[0];
-    const topScore = ranked[0]?.score ?? 0;
-    const summary = `Based on ${top.title} (${top.year}): ${top.abstract.slice(0, 120)}...`;
-    return {
-      data: { summary, top_source: top.id },
-      citation: sourceCitation(top, {
-        retrieval: { model: INDEX_MODEL, score: topScore, rank: 0 },
-      }),
+// §5: /insight — dense retrieval when index is loaded, else sparse fallback.
+app.post("/insight", async (c) => {
+  const pay = verifyPayment(c);
+  if (!pay.ok) return x402Challenge(c, "insight");
+  const body = (await c.req.json().catch(() => ({}))) as { question?: string };
+  if (!body.question) {
+    return c.json<ErrorBody>(
+      { error: { code: "invalid_input", message: "question required" }, trace_id: traceId() },
+      400,
+    );
+  }
+
+  // Dense path: embed question, cosine top-k against the on-disk index.
+  if (DENSE_INDEX && QUERY_EMBEDDER) {
+    const [qvec] = await QUERY_EMBEDDER.embed([body.question]);
+    const hits: SearchHit[] = topK(DENSE_INDEX, qvec, 5);
+    if (hits.length === 0) {
+      return c.json<ErrorBody>(
+        { error: { code: "citation_unavailable", message: "no hits" }, trace_id: traceId() },
+        404,
+      );
+    }
+    const top = hits[0];
+    const snippet = top.chunk.text.slice(0, 240).trim();
+    const citation: CitationSource = {
+      type: "source",
+      source_id: top.chunk.source_id,
+      provider: PROVIDER_NAME,
+      retrieved_at: now(),
+      license: "citation-only",
+      canonical_url: top.chunk.canonical_url,
+      chunk_id: top.chunk.chunk_id,
+      retrieval: { model: DENSE_INDEX.model, score: top.score, rank: top.rank },
     };
-  }),
-);
+    const env: Envelope = {
+      data: {
+        question: body.question,
+        summary: `Top hit: ${top.chunk.title}. Snippet: ${snippet}${
+          top.chunk.text.length > 240 ? "..." : ""
+        }`,
+        top_source: top.chunk.source_id,
+        hits: hits.map((h) => ({
+          source_id: h.chunk.source_id,
+          chunk_id: h.chunk.chunk_id,
+          canonical_url: h.chunk.canonical_url,
+          score: h.score,
+          rank: h.rank,
+        })),
+      },
+      citation,
+      receipt: makeReceipt("insight", pay.tx),
+    };
+    return c.json(env, 200);
+  }
+
+  // Sparse fallback — original 3-paper demo behaviour.
+  const q = body.question.toLowerCase();
+  const ranked = CORPUS.map((p) => ({ p, score: substringScore(p, q) })).sort(
+    (a, b2) => b2.score - a.score,
+  );
+  const top = ranked[0]?.score > 0 ? ranked[0].p : CORPUS[0];
+  const topScore = ranked[0]?.score ?? 0;
+  const summary = `Based on ${top.title} (${top.year}): ${top.abstract.slice(0, 120)}...`;
+  const env: Envelope = {
+    data: { summary, top_source: top.id },
+    citation: sourceCitation(top, {
+      retrieval: { model: INDEX_MODEL, score: topScore, rank: 0 },
+    }),
+    receipt: makeReceipt("insight", pay.tx),
+  };
+  return c.json(env, 200);
+});
 
 app.notFound((c) =>
   c.json<ErrorBody>(

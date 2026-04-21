@@ -12,7 +12,8 @@
     "start": "node dist/server.js",
     "agent": "tsx agent.ts",
     "demo": "bash demo.sh",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build-index": "tsx build-index.ts"
   },
   "dependencies": {
     "hono": "^4.6.0",
