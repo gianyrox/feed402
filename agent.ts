@@ -79,6 +79,11 @@ async function main() {
   console.log(
     `   ← provider="${manifest.name}" spec=${manifest.spec} tiers=[${Object.keys(manifest.tiers).join(", ")}]`,
   );
+  if (manifest.index) {
+    console.log(
+      `   ← index=${manifest.index.type}/${manifest.index.model} chunks=${manifest.index.chunks} corpus_sha256=${manifest.index.corpus_sha256.slice(0, 12)}…`,
+    );
+  }
   console.log("");
 
   // 2. Unpaid call (expect 402)
@@ -102,7 +107,7 @@ async function main() {
   console.log("   envelope.receipt:         ", env.receipt);
   console.log("");
 
-  // 4. Insight tier (cheapest)
+  // 4. Insight tier (cheapest) — inspect v0.2 retrieval provenance
   const insightTier = manifest.tiers.insight;
   if (insightTier) {
     console.log(`4. POST ${BASE_URL}${insightTier.path}  + x-payment`);
@@ -114,6 +119,12 @@ async function main() {
     );
     console.log("   ← 200 OK");
     console.log("   summary:", ins.data.summary);
+    const c = ins.citation as any;
+    if (c.chunk_id || c.retrieval) {
+      console.log(
+        `   citation.chunk_id: ${c.chunk_id ?? "—"}  retrieval: model=${c.retrieval?.model} score=${c.retrieval?.score?.toFixed(3)} rank=${c.retrieval?.rank}`,
+      );
+    }
     console.log("   receipt:", ins.receipt);
   }
 

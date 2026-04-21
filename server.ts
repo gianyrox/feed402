@@ -1,29 +1,35 @@
 /**
- * feed402 v0.1 — reference data provider server
+ * feed402 v0.2 — reference data provider server
  *
  * Implements SPEC.md §1 (discovery), §2 (handshake), §3 (envelope),
- * §4 (tiers: raw, query, insight), §5 (errors).
+ * §4 (index manifest — v0.2 optional), §5 (tiers: raw, query, insight),
+ * §6 (errors).
  *
- * Payment verification in v0.1 is STUBBED: presence of an `x-payment`
+ * Payment verification in v0.2 is STUBBED: presence of an `x-payment`
  * header is treated as a valid payment. A production server would plug
  * in the x402 facilitator signature check here (see §2 — unchanged from
  * stock x402).
  *
- * Ship target: <200 LOC, Hono, Node 20+, no database, in-memory index.
+ * Ship target: <300 LOC, Hono, Node 20+, no database, in-memory index.
  *
  * Run: npm run dev
  */
 
+import { createHash } from "node:crypto";
 import { Hono } from "hono";
 import type { Context } from "hono";
-import type {
-  Citation,
-  Envelope,
-  ErrorBody,
-  Manifest,
-  Receipt,
-  TierName,
-  TierSpec,
+import {
+  SPEC_VERSION,
+  type Citation,
+  type CitationSource,
+  type Envelope,
+  type ErrorBody,
+  type IndexManifest,
+  type Manifest,
+  type Receipt,
+  type RetrievalProvenance,
+  type TierName,
+  type TierSpec,
 } from "./types.js";
 
 // ---------- Provider config ----------
@@ -77,6 +83,56 @@ const CORPUS: Paper[] = [
   },
 ];
 
+// ---------- §4: Index manifest (v0.2) ----------
+//
+// The reference server's "retrieval" is a naive substring match over the
+// tiny in-memory CORPUS. That is intentionally sparse — it lets us exercise
+// the §3.2 retrieval-provenance envelope without pulling in an embedding
+// model. A production merchant swaps this block for its real index metadata
+// (voyage-3-large, openai:text-embedding-3-small, bm25, hybrid, etc.).
+//
+// One chunk per paper; chunk_id format is `<source_id>#c0`.
+
+/** Stable hex SHA-256 of the corpus — spec §4.1 `corpus_sha256`. */
+function computeCorpusHash(papers: Paper[]): string {
+  const sorted = [...papers].sort((a, b) => a.id.localeCompare(b.id));
+  const h = createHash("sha256");
+  for (const p of sorted) {
+    h.update(p.id);
+    h.update("\0");
+    h.update(createHash("sha256").update(`${p.title}\n${p.abstract}`).digest("hex"));
+    h.update("\n");
+  }
+  return h.digest("hex");
+}
+
+const INDEX_BUILT_AT = new Date().toISOString();
+const INDEX_MODEL = "none"; // sparse substring matcher — see §4.1
+const INDEX: IndexManifest = {
+  type: "sparse",
+  model: INDEX_MODEL,
+  chunks: CORPUS.length,
+  chunk_strategy: { kind: "post" }, // one chunk == one paper
+  corpus_sha256: computeCorpusHash(CORPUS),
+  built_at: INDEX_BUILT_AT,
+};
+
+/** §3.2 chunk id for a paper. One chunk per paper → always `#c0`. */
+function chunkIdOf(paper: Paper): string {
+  return `${paper.id}#c0`;
+}
+
+/** Naive substring-match "score" in [0, 1] for the reference sparse retriever. */
+function substringScore(paper: Paper, q: string): number {
+  if (!q) return 0;
+  const hay = `${paper.title}\n${paper.abstract}`.toLowerCase();
+  const needle = q.toLowerCase();
+  if (!hay.includes(needle)) return 0;
+  // Tiny heuristic: normalize by needle length so longer matches score lower
+  // than shorter, more specific ones. Deterministic; fine for a demo.
+  return Math.min(1, needle.length / Math.max(4, hay.length / 8));
+}
+
 // ---------- Helpers ----------
 
 function traceId(): string {
@@ -87,8 +143,19 @@ function now(): string {
   return new Date().toISOString();
 }
 
-function sourceCitation(paper: Paper): Citation {
-  return {
+/**
+ * Build a §3 `source` citation.
+ *
+ * When the caller supplies a retrieval hit (`retrieval` + optional explicit
+ * `chunk_id`), we attach §3.2 retrieval provenance so the envelope is
+ * re-verifiable against our §4 index manifest. The `raw` tier omits both —
+ * bulk fetches are not retrieval hits.
+ */
+function sourceCitation(
+  paper: Paper,
+  opts?: { retrieval?: RetrievalProvenance; chunkId?: string },
+): CitationSource {
+  const cit: CitationSource = {
     type: "source",
     source_id: paper.id,
     provider: PROVIDER_NAME,
@@ -96,6 +163,11 @@ function sourceCitation(paper: Paper): Citation {
     license: "CC-BY-4.0",
     canonical_url: paper.canonical_url,
   };
+  if (opts?.retrieval) {
+    cit.chunk_id = opts.chunkId ?? chunkIdOf(paper);
+    cit.retrieval = opts.retrieval;
+  }
+  return cit;
 }
 
 function makeReceipt(tier: TierName, tx: string): Receipt {
@@ -163,18 +235,19 @@ function handleTier(
 
 const app = new Hono();
 
-// §1: Discovery manifest
+// §1: Discovery manifest (v0.2 — includes §4 optional `index` block)
 app.get("/.well-known/feed402.json", (c) => {
   const manifest: Manifest = {
     name: PROVIDER_NAME,
     version: PROVIDER_VERSION,
-    spec: "feed402/0.1",
+    spec: SPEC_VERSION,
     chain: CHAIN,
     wallet: PROVIDER_WALLET,
     tiers: TIERS,
     citation_policy: "CC-BY-4.0",
     citation_types: ["source"],
     contact: "ops@example.com",
+    index: INDEX,
   };
   return c.json(manifest);
 });
@@ -192,7 +265,7 @@ app.post("/raw", (c) =>
   }),
 );
 
-// §4: /query — structured filter
+// §5: /query — structured filter (retrieval-backed when `contains` is present)
 app.post("/query", (c) =>
   handleTier(c, "query", (body) => {
     const b = body as { year_gte?: number; contains?: string };
@@ -205,21 +278,39 @@ app.post("/query", (c) =>
       );
     }
     if (rows.length === 0) return null;
-    return { data: { rows }, citation: sourceCitation(rows[0]) };
+    // §3.2: emit retrieval provenance only when a retrieval actually happened
+    // (i.e. a `contains` substring match). Year-only filters are structured,
+    // not retrieval, so we omit it per "providers that do not do retrieval
+    // SHOULD omit both fields."
+    const retrieved = Boolean(b.contains);
+    const citation = retrieved
+      ? sourceCitation(rows[0], {
+          retrieval: { model: INDEX_MODEL, score: substringScore(rows[0], b.contains!), rank: 0 },
+        })
+      : sourceCitation(rows[0]);
+    return { data: { rows }, citation };
   }),
 );
 
-// §4: /insight — NL summary + top-k (stub: deterministic pick)
+// §5: /insight — NL summary + top-k (reference sparse retrieval)
 app.post("/insight", (c) =>
   handleTier(c, "insight", (body) => {
     const b = body as { question?: string };
     if (!b.question) return null;
     const q = b.question.toLowerCase();
-    const top = CORPUS.find(
-      (p) => p.title.toLowerCase().includes(q) || p.abstract.toLowerCase().includes(q),
-    ) ?? CORPUS[0];
+    // Rank the whole corpus by substring score; fall back to CORPUS[0] if nothing hits.
+    const ranked = CORPUS
+      .map((p) => ({ p, score: substringScore(p, q) }))
+      .sort((a, b2) => b2.score - a.score);
+    const top = ranked[0]?.score > 0 ? ranked[0].p : CORPUS[0];
+    const topScore = ranked[0]?.score ?? 0;
     const summary = `Based on ${top.title} (${top.year}): ${top.abstract.slice(0, 120)}...`;
-    return { data: { summary, top_source: top.id }, citation: sourceCitation(top) };
+    return {
+      data: { summary, top_source: top.id },
+      citation: sourceCitation(top, {
+        retrieval: { model: INDEX_MODEL, score: topScore, rank: 0 },
+      }),
+    };
   }),
 );
 

@@ -88,11 +88,17 @@ merchant on Base.
 ## Related
 
 - [x402 protocol](https://www.x402.org/) — the payment rail this sits on.
-- `~/agfarms/x402-research-gateway/` — a production-ish Go implementation of
+- `~/agfarms/x402-research-gateway/` — production-ish Go implementation of
   a paid research gateway (PubMed, Semantic Scholar, OpenAlex, ClinicalTrials,
-  PubChem, Kruse corpus) on Base Sepolia by the same author. Not yet
-  feed402-compliant (missing `/.well-known/feed402.json`, citation envelope,
-  insight tier) — candidate for upgrade in v0.2.
+  PubChem, Kruse corpus) on Base Sepolia by the same author. **As of
+  2026-04-21, this gateway is feed402/0.2 compliant** — it serves
+  `/.well-known/feed402.json`, tags every route with a feed402 tier
+  (raw/query), and wraps every successful paid response in the §3 envelope
+  with a per-source citation (pubmed / s2 / openalex / nct / jackkruse /
+  pubchem). That makes it the **second live feed402 merchant** after the
+  TypeScript reference in this repo — and the first one wrapping real
+  upstream data (36M+ PubMed citations, 200M+ Semantic Scholar papers,
+  400K+ ClinicalTrials studies, 460 Kruse posts, etc.).
 - `~/agfarms/bucket-foundation/` — Bucket Foundation, the nonprofit canon
   project that will consume feed402 merchants as citable research inputs.
 - DerbyFish BHRV — the reference VDS (Verified Data Session) merchant; see

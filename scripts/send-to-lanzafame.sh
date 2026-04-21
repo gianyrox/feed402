@@ -1,58 +1,94 @@
 #!/bin/bash
-# Gmail compose URL for the feed402 review packet.
-# Per AGFarms delivery pattern (CLAUDE.md §Cloud Share): compose URL
-# prefills to/subject/body, user clicks Drive picker to attach PDFs.
+# Gmail compose URL for feed402 status resync with Lanzafame.
+#
+# Context: the Apr 15 review packet (fixed-bid $600 / 10h) is STALE. Billing
+# was reframed to hourly on Apr 18, and spec shipped v0.2 on Apr 19. This
+# script replaces the prior `send-to-lanzafame.sh` content.
+#
+# This is a short status + direction ask, NOT another review packet.
+# No attachments — the whole repo is <500 LOC and the text below is the update.
 #
 # Usage: bash send-to-lanzafame.sh
 # Then click the printed URL in any browser logged into gianyrox@gmail.com
-# → compose opens → click Drive icon → pick the folder → send.
+# → compose opens → review body → send.
 #
-# This script DOES NOT SEND — it only prints a URL. Review before clicking.
+# This script DOES NOT SEND — it only prints a URL.
 
-GDRIVE_LINK="https://drive.google.com/open?id=1e1MzYcozHyU_fzTyHENA4QvBTPV9wpzH"
-GDRIVE_PATH="gdrive:AGFarms/Nucleus/viatika/feed402-review-2026-04-15/"
+# TODO: fill in before clicking. Not committed for obvious reasons.
+TO="${LANZAFAME_EMAIL:-REPLACE_WITH_LANZAFAME_EMAIL}"
 
-# TODO: confirm Lanzafame's email before using. Placeholder below.
-TO="REPLACE_WITH_LANZAFAME_EMAIL"
-
-SUBJECT="feed402 — review packet (10-page fixed-bid proposal for x402 data supply)"
+SUBJECT="feed402 status — v0.2 shipped, need direction on next hours"
 
 BODY="Hey,
 
-Packet for the open-source x402 data reference stack we talked about — right-sized to
-what you asked for. 9 pages total across three docs, fixed bid \$600 / 10 hours.
+Short status pulse on feed402 so you can steer the next hours.
 
-Google Drive folder (Drive picker in compose will show all 7 files):
-  ${GDRIVE_LINK}
+What changed since the last packet:
 
-Read in order:
-  1. 01-BRIEF.pdf     (3 pages) — problem, solution, what ships, budget, decisions
-  2. 02-SPEC.pdf      (4 pages) — one-page protocol + §3.1 extension point (VDS)
-  3. 03-CONTRACT.pdf  (2 pages) — half-page fixed-bid terms
+  1. Billing reframed to hourly (\$60/hr) under the existing Viatika
+     engagement. No fixed bid, no separate contract. Terms are in
+     CONTRACT.md, half a page, MIT code / CC0 spec, Gian-authored, no
+     ownership transfer. This reverses the Apr 15 fixed-bid framing.
 
-Two things to react to:
+  2. Spec is at v0.2 (backwards-compatible with v0.1):
+       §4  — optional \`index\` manifest: merchants declare retrieval scheme
+             (dense/sparse/hybrid, embedding model, chunk strategy,
+             corpus_sha256, built_at).
+       §3.2 — optional \`chunk_id\` + \`retrieval.{model, score, rank}\` on
+             source citations.
+     Point: citations become reproducible, not just referenceable.
+     (provider, corpus_sha256, chunk_id, model) lets a second merchant
+     re-verify the retrieval that produced a hit. That's the moat vs.
+     'scrape the source yourself.'
 
-  (a) Go / no-go on the proposal as written. Fixed \$600 / 10h. If yes, I start
-      within 24 hours of your reply and ship inside one week.
+  3. Reference v0.1 impl shipped and working end-to-end:
+       server.ts (Hono, 3 tiers, in-memory corpus)  —  ~280 LOC
+       agent.ts  (discovery → 402 → paid envelope)  —  ~120 LOC
+       demo.sh   (one command, prints full flow)
 
-  (b) Four decisions in BRIEF.md §Decisions needed:
-        1. Name — 'feed402'? 'x402-data'? something else?
-        2. Repo home — Viatika org, neutral org, or my personal?
-        3. License — MIT code + CC0 spec (my default) — ok?
-        4. Start date — today, or wait on viatika-platform queue?
+  4. Reference v0.2 impl just landed (today): server emits feed402/0.2
+     manifest with the §4 index block, insight tier attaches retrieval
+     provenance per §3.2. Demo visibly shows it.
 
-One reply answering (a) + the four items IS the contract. No countersignature
-ceremony. I don't need a legal review cycle for this — the terms are in
-03-CONTRACT.pdf and it's half a page.
+What's still stubbed / deferred:
 
-The thing I'd flag explicitly: SPEC §3.1 adds a forward-compat hook
-(citation.type) that lets the same rail carry not just literature
-citations but also scripted real-world capture sessions — DerbyFish's
-catch-verification pipeline is the named reference merchant. That's zero
-cost to v0.1 and materially widens Viatika's addressable supply side
-(any data provider whose product is evidence, not rows).
+  - x402 payment verification is a presence-check on the x-payment header.
+    Plugging in a real facilitator signature check is ~a half-day of work.
+  - CORPUS is 3 hardcoded PubMed stubs. Real dataset swap pending.
+  - No git remote yet. Repo home still undecided.
 
-Let me know.
+Three questions to steer the next hours:
+
+  (A) Protocol direction — v0.2's index/provenance addition: keep, push
+      back, or extend before any more protocol work?
+
+  (B) Repo home — Viatika org, neutral, or my personal (gianyrox/feed402)?
+      Every day it stays local-only is a day no one else can fork it.
+
+  (C) Next burn target — pick one:
+        (c1) Swap the stub x402 verifier for a real Base facilitator check.
+        (c2) Bring ~/agfarms/x402-research-gateway (my existing Go
+             implementation with 7 live Base Sepolia research endpoints —
+             PubMed, Semantic Scholar, OpenAlex, ClinicalTrials, PubChem,
+             Kruse corpus) up to feed402 compliance. That's the second
+             real merchant and the biggest proof the protocol travels.
+        (c3) First real dataset in the TS reference server (pick one
+             corpus).
+        (c4) Something else you care about more.
+
+One thing I'd flag explicitly if you haven't reread the spec lately:
+§3.1 keeps the forward-compat hook for citation types. VDS (Verified
+Data Session) is defined as the first non-\`source\` type; DerbyFish
+BHRV (my catch-verification pipeline) is the named reference. That
+widens feed402 from 'paid literature' to 'paid evidence' without a
+spec rewrite. Zero cost to v0.2; the value shows up when a VDS merchant
+lists alongside a source merchant.
+
+Hours burned so far: \$TBD — I'll reconcile the TIMELOG once I'm at a
+terminal. Ballpark multi-session, pre-payment obviously.
+
+One reply with (A) + (B) + (C) is enough to unblock the next session.
+
 — Gian"
 
 # URL-encode body for Gmail compose
