@@ -1,0 +1,31 @@
+id,lat,lon,timestamp,source_url,license,title,kind,description
+wd-Q1567823-plague-of-amwas,31.839166666,34.989444444,0638-01-01T00:00:00Z,https://www.wikidata.org/wiki/Q1567823,CC-BY-SA-4.0,Plague of Amwas,epidemic,epidemic in 7th century Syria
+wd-Q8051732-1793-philadelphia-yellow-fever-epidemic,39.951,-75.14,1793-08-01T00:00:00Z,https://www.wikidata.org/wiki/Q8051732,CC-BY-SA-4.0,1793 Philadelphia yellow fever epidemic,epidemic,epidemic in the United States
+wd-Q87720284-1821-barcelona-yellow-fever-epidemic,41.3825,2.1769,1821-08-03T00:00:00Z,https://www.wikidata.org/wiki/Q87720284,CC-BY-SA-4.0,1821 Barcelona yellow fever epidemic,epidemic,
+wd-Q2361458-groningen-epidemic,53.2189,6.5675,1826-01-01T00:00:00Z,https://www.wikidata.org/wiki/Q2361458,CC-BY-SA-4.0,Groningen epidemic,epidemic,1826 malaria epidemic
+wd-Q4554489-1837-1838-smallpox-epidemic,37,-97,1837-01-01T00:00:00Z,https://www.wikidata.org/wiki/Q4554489,CC-BY-SA-4.0,1837–1838 smallpox epidemic,epidemic,disease outbreak in the United States
+wd-Q8051877-yellow-fever-in-buenos-aires,-37,-60,1852-01-01T00:00:00Z,https://www.wikidata.org/wiki/Q8051877,CC-BY-SA-4.0,yellow fever in Buenos Aires,epidemic,"series of yellow fever epidemics in 1852, 1858, 1870, and 1871"
+wd-Q2035019-1854-broad-street-cholera-outbreak,51.513333333,-0.136666666,1854-01-01T00:00:00Z,https://www.wikidata.org/wiki/Q2035019,CC-BY-SA-4.0,1854 Broad Street cholera outbreak,epidemic,Severe outbreak of cholera that occurred in London in 1854
+wd-Q59466726-1870-barcelona-yellow-fever-epidemic,41.3825,2.1769,1870-01-01T00:00:00Z,https://www.wikidata.org/wiki/Q59466726,CC-BY-SA-4.0,1870 Barcelona yellow fever epidemic,epidemic,"disease outbreak in Barcelona, Spain"
+wd-Q45819176-malayan-filariasis-in-hachijo-kojima-island,33.12555556,139.68805556,1900-01-01T00:00:00Z,https://www.wikidata.org/wiki/Q45819176,CC-BY-SA-4.0,Malayan filariasis in Hachijo-Kojima Island,epidemic,
+wd-Q65238303-giardia-outbreak-in-bergen-in-2004,60.3852075,5.3680645,2004-01-01T00:00:00Z,https://www.wikidata.org/wiki/Q65238303,CC-BY-SA-4.0,giardia outbreak in Bergen in 2004,epidemic,
+wd-Q1075913-2010-2012-haiti-cholera-outbreak,19.1,-72.33333333,2010-10-01T00:00:00Z,https://www.wikidata.org/wiki/Q1075913,CC-BY-SA-4.0,2010–2012 Haiti cholera outbreak,epidemic,cholera outbreak spread by UN peacekeepers in Haiti
+wd-Q21686043-2015-16-zika-virus-epidemic,20,-100,2015-04-01T00:00:00Z,https://www.wikidata.org/wiki/Q21686043,CC-BY-SA-4.0,2015–16 Zika virus epidemic,epidemic,epidemic
+wd-Q36302993-gorakhpur-hospital-deaths,26.812222222,83.400833333,2017-08-07T00:00:00Z,https://www.wikidata.org/wiki/Q36302993,CC-BY-SA-4.0,Gorakhpur hospital deaths,epidemic,tragic events in India
+wd-Q90157034-2019-2020-dengue-fever-epidemic-in-venezuela,8,-67,2019-01-01T00:00:00Z,https://www.wikidata.org/wiki/Q90157034,CC-BY-SA-4.0,2019-2020 dengue fever epidemic in Venezuela,epidemic,viral outbreak in Venezuela
+wd-Q64578193-q64578193,60.415777777,5.206055555,2019-06-05T00:00:00Z,https://www.wikidata.org/wiki/Q64578193,CC-BY-SA-4.0,Q64578193,epidemic,
+wd-Q87070975-covid-19-pandemic-in-israel,31,35,2020-01-01T00:00:00Z,https://www.wikidata.org/wiki/Q87070975,CC-BY-SA-4.0,COVID-19 pandemic in Israel,epidemic,viral outbreak
+wd-Q60754218-loch-maree-hotel-botulism-poisoning,57.675277777,-5.498611111,1922-08-15T00:00:00Z,https://www.wikidata.org/wiki/Q60754218,CC-BY-SA-4.0,Loch Maree Hotel botulism poisoning,outbreak,"first recorded outbreak of botulism in the United Kingdom, which occurred in 1922"
+wd-Q10844016-hepatitis-a-outbreak-in-shanghai-in-1988,31.166666666,121.466666666,1988-01-01T00:00:00Z,https://www.wikidata.org/wiki/Q10844016,CC-BY-SA-4.0,Hepatitis A outbreak in Shanghai in 1988,outbreak,
+wd-Q2534315-2001-united-kingdom-foot-and-mouth-outbreak,52.3431,6.04833,2001-01-01T00:00:00Z,https://www.wikidata.org/wiki/Q2534315,CC-BY-SA-4.0,2001 United Kingdom foot-and-mouth outbreak,outbreak,Epidemic in 2001 in the UK
+wd-Q4599762-2002-barrow-in-furness-legionellosis-outbreak,54.1122,-3.22776,2002-01-01T00:00:00Z,https://www.wikidata.org/wiki/Q4599762,CC-BY-SA-4.0,2002 Barrow-in-Furness legionellosis outbreak,outbreak,disease outbreak in England
+wd-Q54099401-2018-democratic-republic-of-the-congo-ebola-virus-outbreak,-0.75,18.11666667,2018-01-01T00:00:00Z,https://www.wikidata.org/wiki/Q54099401,CC-BY-SA-4.0,2018 Democratic Republic of the Congo Ebola virus outbreak,outbreak,disease outbreak in the Democratic Republic of the Congo
+wd-Q11666822-y-wa-famine,35.011667,135.768333,1180-01-01T00:00:00Z,https://www.wikidata.org/wiki/Q11666822,CC-BY-SA-4.0,Yōwa famine,famine,famine in Japan
+wd-Q11457474-kangi-famine,35.011667,135.768333,1230-01-01T00:00:00Z,https://www.wikidata.org/wiki/Q11457474,CC-BY-SA-4.0,Kangi famine,famine,famine in Japan
+wd-Q1988505-great-famine-of-1315-1317,48.690959,9.14062,1315-01-01T00:00:00Z,https://www.wikidata.org/wiki/Q1988505,CC-BY-SA-4.0,Great Famine of 1315–1317,famine,famine in 14th century medieval Europe
+wd-Q2477522-great-bengal-famine-of-1770,23.9888,88.7311,1767-01-01T00:00:00Z,https://www.wikidata.org/wiki/Q2477522,CC-BY-SA-4.0,Great Bengal famine of 1770,famine,famine affecting lower regions of India in 1770
+wd-Q188371-great-irish-famine,53.351,-7.921,1845-01-01T00:00:00Z,https://www.wikidata.org/wiki/Q188371,CC-BY-SA-4.0,Great Irish Famine,famine,1845 -1852 famine in Ireland
+wd-Q493814-1879-irish-famine,53.78,-9.05,1879-01-01T00:00:00Z,https://www.wikidata.org/wiki/Q493814,CC-BY-SA-4.0,1879 Irish Famine,famine,1879 famine in Ireland
+wd-Q165058-holodomor,49,32,1932-01-01T00:00:00Z,https://www.wikidata.org/wiki/Q165058,CC-BY-SA-4.0,Holodomor,famine,man-made famine in Soviet Ukraine in 1932–33 that killed as many as seven million Ukrainians
+wd-Q522837-bengal-famine-of-1943,23.9888,88.7311,1943-01-01T00:00:00Z,https://www.wikidata.org/wiki/Q522837,CC-BY-SA-4.0,Bengal famine of 1943,famine,Famine in British India during World War II
+wd-Q55627151-nyasaland-famine-1949,-15.646841,35.12558,1949-01-01T00:00:00Z,https://www.wikidata.org/wiki/Q55627151,CC-BY-SA-4.0,Nyasaland Famine 1949,famine,Famine in protectorate of Nyasaland
