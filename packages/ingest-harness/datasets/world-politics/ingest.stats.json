@@ -1,15 +1,18 @@
 {
-  "kept": 98,
-  "chunks": 86,
-  "generated_at": "2026-04-27T14:35:50.170Z",
+  "kept": 3258,
+  "exact_geo": 112,
+  "country_centroid": 3146,
+  "chunks": 2689,
+  "generated_at": "2026-04-27T16:39:47.773Z",
   "slices": [
     "treaty",
     "election",
     "summit",
     "coup",
-    "referendum"
+    "referendum",
+    "head-of-state"
   ],
   "excluded_due_to_license": [
-    "ACLED (CC-BY-NC, blocks paid-query tier)"
+    "ACLED (CC-BY-NC)"
   ]
 }

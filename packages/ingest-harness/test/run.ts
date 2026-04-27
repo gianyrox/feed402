@@ -57,6 +57,20 @@ await (async () => {
     eq(res.length, 3);
   });
 
+  await t("BCE timestamps: from=-500 to=500 keeps Rome (476 CE), drops 1492", () => {
+    const bce: any[] = [
+      { id: "alexander-conquest", lat: 33.0, lon: 44.0, timestamp: "-0331-10-01T00:00:00Z", source_url: "x", license: "x" },
+      { id: "fall-of-rome", lat: 41.9, lon: 12.5, timestamp: "0476-09-04T00:00:00Z", source_url: "x", license: "x" },
+      { id: "columbus", lat: 23.0, lon: -74.5, timestamp: "1492-10-12T00:00:00Z", source_url: "x", license: "x" },
+    ];
+    const q = parseQuery(new URLSearchParams("from=-500&to=500"));
+    const res = applyQuery(bce, q);
+    eq(res.length, 2);
+    ok(res.find(r => r.id === "alexander-conquest"));
+    ok(res.find(r => r.id === "fall-of-rome"));
+    ok(!res.find(r => r.id === "columbus"));
+  });
+
   await t("BM25 retrieval ranks plague chunk top for 'black death plague'", () => {
     const idx = Bm25.fromJsonl(dir + "chunks.jsonl");
     ok(idx.size >= 6);
@@ -72,7 +86,7 @@ await (async () => {
   const app = buildServer({
     dataset: { provider: m.name, defaultLicense: m.citation_policy, rows, chunks: [], manifest: m },
     bm25: idx,
-    payment: { enforce: true, network: m.chain },
+    payment: { enforce: true, network: m.chain, verifier: "stub" },
   });
 
   await t("/.well-known/feed402.json serves manifest", async () => {

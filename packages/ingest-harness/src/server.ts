@@ -3,7 +3,8 @@ import type { DatasetConfig } from "./types.js";
 import { parseQuery, applyQuery } from "./query.js";
 import { Bm25 } from "./insight.js";
 import { rowCitation, chunkCitation, batchCitation, makeReceipt, envelope } from "./envelope.js";
-import { challenge, checkPayment, type PaymentMode } from "./x402.js";
+import { challenge, checkPayment, paymentModeFromEnv, type PaymentMode } from "./x402.js";
+export { paymentModeFromEnv };
 
 export interface ServerOpts {
   dataset: DatasetConfig;
@@ -15,6 +16,16 @@ export function buildServer({ dataset, bm25, payment }: ServerOpts) {
   const app = new Hono();
   const m = dataset.manifest;
   const provider = m.name;
+
+  // Permissive CORS — feed402 endpoints are public-by-design, paywalled at the row.
+  app.use("*", async (c, next) => {
+    c.header("Access-Control-Allow-Origin", "*");
+    c.header("Access-Control-Allow-Headers", "x-payment, content-type");
+    c.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    c.header("Access-Control-Expose-Headers", "www-authenticate");
+    if (c.req.method === "OPTIONS") return c.body(null, 204);
+    await next();
+  });
 
   // Discovery
   app.get("/.well-known/feed402.json", (c) => c.json(m));
@@ -39,7 +50,7 @@ export function buildServer({ dataset, bm25, payment }: ServerOpts) {
 
   // RAW — bulk passthrough; pay per row signaled but billed per call in dev
   app.all("/raw", async (c) => {
-    const pay = checkPayment(c, payment);
+    const pay = await checkPayment(c, payment);
     if (!pay.paid) return challenge(c, m, "raw");
     const qs = new URL(c.req.url).searchParams;
     const limit = Math.min(1000, +(qs.get("limit") ?? "100"));
@@ -57,7 +68,7 @@ export function buildServer({ dataset, bm25, payment }: ServerOpts) {
 
   // QUERY — bbox + time + filters
   app.all("/query", async (c) => {
-    const pay = checkPayment(c, payment);
+    const pay = await checkPayment(c, payment);
     if (!pay.paid) return challenge(c, m, "query");
     const qs = new URL(c.req.url).searchParams;
     const q = parseQuery(qs);
@@ -77,7 +88,7 @@ export function buildServer({ dataset, bm25, payment }: ServerOpts) {
 
   // INSIGHT — top-K BM25 over chunks + summary
   app.all("/insight", async (c) => {
-    const pay = checkPayment(c, payment);
+    const pay = await checkPayment(c, payment);
     if (!pay.paid) return challenge(c, m, "insight");
     const qs = new URL(c.req.url).searchParams;
     const query = qs.get("q") ?? "";

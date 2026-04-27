@@ -36,12 +36,31 @@ export function parseQuery(qs: URLSearchParams): QueryParams {
   return out;
 }
 
-function tsToMs(s: string): number {
-  // Accept "1500", "1500-01-01", or full ISO. Negative-year unsupported here (BCE).
-  if (/^-?\d+$/.test(s)) return Date.parse(`${s.padStart(4, "0")}-01-01T00:00:00Z`);
+// Convert any year-ish timestamp string to a "year ordinal" number that compares
+// correctly across BCE/CE. Year ordinal = JS year offset from 1970, in years.
+// BCE inputs accept either leading "-" (ISO-8601 extended: "-0500") or "500BC".
+// We compare in *year units*, not ms, because Date.parse cannot represent BCE.
+export function tsToYear(s: string): number {
+  if (!s) return NaN;
+  // ISO extended: -0500-01-01 or -500
+  let m = s.match(/^-(\d+)/);
+  if (m) return -Number(m[1]);
+  // 500BC / 500BCE / 500 BC
+  m = s.match(/^(\d+)\s*(?:BC|BCE)$/i);
+  if (m) return -Number(m[1]);
+  // Plain year "1500"
+  if (/^\d{1,4}$/.test(s)) return Number(s);
+  // Standard ISO with year ≥ 1
+  m = s.match(/^(\d{4,})-/);
+  if (m) return Number(m[1]);
+  // Fallback: try Date.parse for full ISO
   const t = Date.parse(s);
-  return Number.isNaN(t) ? NaN : t;
+  if (Number.isFinite(t)) return new Date(t).getUTCFullYear();
+  return NaN;
 }
+
+// Apply same to the row.timestamp string in rows; supports negative-year ISO ("-0500-01-01...").
+function rowYear(ts: string): number { return tsToYear(ts); }
 
 export function applyQuery(rows: Row[], q: QueryParams): Row[] {
   let out = rows;
@@ -51,12 +70,12 @@ export function applyQuery(rows: Row[], q: QueryParams): Row[] {
       && r.lon >= minLon && r.lon <= maxLon && r.lat >= minLat && r.lat <= maxLat);
   }
   if (q.from) {
-    const t0 = tsToMs(q.from);
-    if (Number.isFinite(t0)) out = out.filter(r => Date.parse(r.timestamp) >= t0);
+    const y0 = tsToYear(q.from);
+    if (Number.isFinite(y0)) out = out.filter(r => rowYear(r.timestamp) >= y0);
   }
   if (q.to) {
-    const t1 = tsToMs(q.to);
-    if (Number.isFinite(t1)) out = out.filter(r => Date.parse(r.timestamp) <= t1);
+    const y1 = tsToYear(q.to);
+    if (Number.isFinite(y1)) out = out.filter(r => rowYear(r.timestamp) <= y1);
   }
   if (q.filters) {
     out = out.filter(r => Object.entries(q.filters!).every(([k, v]) => String(r[k] ?? "") === v));

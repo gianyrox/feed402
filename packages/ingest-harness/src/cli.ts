@@ -6,6 +6,7 @@ import { loadManifest } from "./manifest.js";
 import { readCsv } from "./csv.js";
 import { Bm25 } from "./insight.js";
 import { buildServer } from "./server.js";
+import { paymentModeFromEnv } from "./x402.js";
 import type { DatasetConfig } from "./types.js";
 
 interface Args {
@@ -59,12 +60,13 @@ async function main() {
     manifest,
   };
 
-  const app = buildServer({ dataset, bm25, payment: { enforce: args.enforce, network: manifest.chain } });
+  const payment = paymentModeFromEnv(args.enforce, manifest.chain);
+  const app = buildServer({ dataset, bm25, payment });
   console.log(`feed402-serve listening on :${args.port}`);
   console.log(`  provider: ${manifest.name}`);
   console.log(`  rows:     ${rows.length}`);
   console.log(`  chunks:   ${bm25.size}`);
-  console.log(`  payment:  ${args.enforce ? "ENFORCED (x402)" : "BYPASSED (dev)"}`);
+  console.log(`  payment:  ${args.enforce ? `ENFORCED (verifier=${payment.verifier}${payment.facilitatorUrl ? " → " + payment.facilitatorUrl : ""})` : "BYPASSED (dev)"}`);
   console.log(`  manifest: http://localhost:${args.port}/.well-known/feed402.json`);
 
   serve({ fetch: app.fetch, port: args.port });
