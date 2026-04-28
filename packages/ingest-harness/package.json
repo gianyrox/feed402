@@ -6,7 +6,8 @@
   "type": "module",
   "main": "dist/server.js",
   "bin": {
-    "feed402-serve": "./dist/cli.js"
+    "feed402-serve": "./dist/cli.js",
+    "feed402-serve-all": "./dist/serve-all.js"
   },
   "scripts": {
     "build": "tsc",

@@ -7,6 +7,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { COUNTRY_CENTROID } from "../_lib/country-centroid.js";
+import { pointToCountry } from "../_lib/topojson.js";
 
 const OUT = "./datasets/per-nation";
 const SRC_ROOT = "./datasets";
@@ -15,10 +16,10 @@ const SRC_DATASETS = [
   "medical-history", "banking-history", "world-politics", "banking", "pharma-fda",
 ];
 
-// Inverted CENTROID table for nearest-country lookup.
-// Naive: assign each (lat,lon) to the nearest centroid in great-circle distance.
-// Quality is "good enough for a globe layer toggle"; not a substitute for proper boundary geo.
-const COUNTRIES = Object.entries(COUNTRY_CENTROID) as Array<[string, [number, number]]>;
+// Country assignment strategy:
+//  1. Polygon test (Natural Earth 1:110m) — exact answer if point is on land.
+//  2. Centroid fallback — for ocean / disputed / micro-territory points.
+const CENTROIDS = Object.entries(COUNTRY_CENTROID) as Array<[string, [number, number]]>;
 function haversine(a: [number, number], b: [number, number]): number {
   const toRad = (x: number) => x * Math.PI / 180;
   const dLat = toRad(b[0] - a[0]);
@@ -27,19 +28,25 @@ function haversine(a: [number, number], b: [number, number]): number {
   const h = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
   return Math.asin(Math.sqrt(h));
 }
-function nearestCountry(lat: number, lon: number): string {
+function nearestCentroid(lat: number, lon: number): string {
   let best = "??", bestD = Infinity;
-  for (const [iso, c] of COUNTRIES) {
+  for (const [iso, c] of CENTROIDS) {
     const d = haversine([lat, lon], c);
     if (d < bestD) { bestD = d; best = iso; }
   }
   return best;
 }
+function assignCountry(lat: number, lon: number): { iso: string; method: "polygon" | "centroid" } {
+  const poly = pointToCountry(lat, lon);
+  if (poly) return { iso: poly, method: "polygon" };
+  return { iso: nearestCentroid(lat, lon), method: "centroid" };
+}
 
 interface Row {
   id: string; lat: number; lon: number; timestamp: string;
   source_url: string; license: string; provider: string;
-  country_iso2: string; kind?: string; title?: string;
+  country_iso2: string; geo_method: "polygon" | "centroid";
+  kind?: string; title?: string;
   [k: string]: unknown;
 }
 
@@ -79,7 +86,7 @@ function main() {
       const lat = +cells[idx("lat")];
       const lon = +cells[idx("lon")];
       if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
-      const iso = nearestCountry(lat, lon);
+      const { iso, method } = assignCountry(lat, lon);
       const obj: Row = {
         id: `${ds}:${cells[idx("id")]}`,
         lat, lon,
@@ -88,6 +95,7 @@ function main() {
         license: cells[idx("license")],
         provider: ds,
         country_iso2: iso,
+        geo_method: method,
         kind: idx("kind") >= 0 ? cells[idx("kind")] : undefined,
         title: idx("title") >= 0 ? cells[idx("title")] : (idx("name") >= 0 ? cells[idx("name")] : undefined),
       };
@@ -99,10 +107,14 @@ function main() {
 
   // Sharding stats
   const shard: Record<string, number> = {};
-  for (const r of allRows) shard[r.country_iso2] = (shard[r.country_iso2] ?? 0) + 1;
+  let polyCount = 0, centroidCount = 0;
+  for (const r of allRows) {
+    shard[r.country_iso2] = (shard[r.country_iso2] ?? 0) + 1;
+    if (r.geo_method === "polygon") polyCount++; else centroidCount++;
+  }
 
   // Emit merged CSV
-  const cols = ["id","lat","lon","timestamp","source_url","license","provider","country_iso2","kind","title"];
+  const cols = ["id","lat","lon","timestamp","source_url","license","provider","country_iso2","geo_method","kind","title"];
   const out = [cols.join(",")];
   for (const r of allRows) {
     const cells = cols.map(k => {
@@ -128,11 +140,15 @@ schema_url: https://per-nation.feed402.dev/schema.json
   writeFileSync(join(OUT, "ingest.stats.json"), JSON.stringify({
     total_rows: allRows.length,
     countries: Object.keys(shard).length,
+    geo_polygon: polyCount,
+    geo_centroid_fallback: centroidCount,
+    polygon_rate: allRows.length ? +(polyCount / allRows.length).toFixed(3) : 0,
     rows_per_country: Object.fromEntries(
       Object.entries(shard).sort((a, b) => b[1] - a[1])
     ),
     generated_at: new Date().toISOString(),
   }, null, 2));
   console.log(`✓ ${allRows.length} rows across ${Object.keys(shard).length} countries`);
+  console.log(`  polygon=${polyCount} centroid=${centroidCount} (${(polyCount*100/allRows.length).toFixed(1)}% exact)`);
 }
 main();

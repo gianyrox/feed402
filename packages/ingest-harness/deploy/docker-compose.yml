@@ -1,0 +1,70 @@
+# feed402 production stack.
+#
+# Two services:
+#   ingest-harness   the multi-tenant feed402 server (this package)
+#   caddy            wildcard *.feed402.dev TLS + reverse proxy
+#
+# Optional third service to co-locate the x402 facilitator:
+#   x402-gateway     ../x402-research-gateway, exposes /verify
+#
+# Required env (drop into deploy/.env):
+#   CLOUDFLARE_API_TOKEN   for DNS-01 wildcard cert
+#   FEED402_FACILITATOR_URL=https://gateway.feed402.dev/x402   (or empty for stub mode)
+services:
+  ingest-harness:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: feed402/ingest-harness:0.1.0
+    restart: unless-stopped
+    environment:
+      FEED402_FACILITATOR_URL: ${FEED402_FACILITATOR_URL:-}
+    command:
+      - "node"
+      - "dist/serve-all.js"
+      - "--datasets-root"
+      - "./datasets"
+      - "--port"
+      - "4400"
+      - "--host-suffix"
+      - "feed402.dev"
+    expose:
+      - "4400"
+    networks:
+      - feed402
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - ingest-harness
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - feed402
+
+  # Optional: co-locate x402 facilitator. Comment out if running separately.
+  # x402-gateway:
+  #   image: ghcr.io/agfarms/x402-research-gateway:latest
+  #   restart: unless-stopped
+  #   environment:
+  #     CHAIN: base-sepolia
+  #   expose:
+  #     - "8091"
+  #   networks:
+  #     - feed402
+
+networks:
+  feed402:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:
