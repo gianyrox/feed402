@@ -3,7 +3,7 @@ import type { DatasetConfig } from "./types.js";
 import { parseQuery, applyQuery } from "./query.js";
 import { Bm25 } from "./insight.js";
 import { rowCitation, chunkCitation, batchCitation, makeReceipt, envelope } from "./envelope.js";
-import { challenge, checkPayment, paymentModeFromEnv, type PaymentMode } from "./x402.js";
+import { challenge, checkPayment, paymentModeFromEnv, buildV2Middleware, type PaymentMode } from "./x402.js";
 export { paymentModeFromEnv };
 
 export interface ServerOpts {
@@ -12,7 +12,7 @@ export interface ServerOpts {
   payment: PaymentMode;
 }
 
-export function buildServer({ dataset, bm25, payment }: ServerOpts) {
+export async function buildServer({ dataset, bm25, payment }: ServerOpts) {
   const app = new Hono();
   const m = dataset.manifest;
   const provider = m.name;
@@ -22,10 +22,20 @@ export function buildServer({ dataset, bm25, payment }: ServerOpts) {
     c.header("Access-Control-Allow-Origin", "*");
     c.header("Access-Control-Allow-Headers", "x-payment, content-type");
     c.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    c.header("Access-Control-Expose-Headers", "www-authenticate");
+    c.header("Access-Control-Expose-Headers", "www-authenticate, x-payment-response, payment-required");
     if (c.req.method === "OPTIONS") return c.body(null, 204);
     await next();
   });
+
+  // Real x402/v2 middleware (active only when FEED402_X402_MODE=v2 + FEED402_PAY_TO set).
+  // Mount BEFORE the /raw /query /insight handlers so it can challenge / settle.
+  // The paths it sees are post-rewrite (/raw, /query, /insight without prefix).
+  const v2 = await buildV2Middleware(m, payment);
+  if (v2) {
+    app.use("/raw", v2);
+    app.use("/query", v2);
+    app.use("/insight", v2);
+  }
 
   // Discovery
   app.get("/.well-known/feed402.json", (c) => c.json(m));

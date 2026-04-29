@@ -12,6 +12,8 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package.json ./
 COPY datasets ./datasets
+COPY landing ./landing
+COPY viz ./viz
 EXPOSE 4400
 # Default: serve every dataset behind path-prefix routing. Production overrides
 # CMD with --host-suffix feed402.dev so wildcard cert + Caddy host-routing kicks in.

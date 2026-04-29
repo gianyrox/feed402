@@ -61,7 +61,7 @@ async function main() {
   };
 
   const payment = paymentModeFromEnv(args.enforce, manifest.chain);
-  const app = buildServer({ dataset, bm25, payment });
+  const app = await buildServer({ dataset, bm25, payment });
   console.log(`feed402-serve listening on :${args.port}`);
   console.log(`  provider: ${manifest.name}`);
   console.log(`  rows:     ${rows.length}`);

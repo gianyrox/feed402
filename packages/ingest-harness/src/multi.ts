@@ -10,8 +10,9 @@
 // containing a `manifest.yaml` becomes a provider whose name is the YAML's
 // `name` field.
 import { Hono } from "hono";
-import { readdirSync, existsSync, statSync } from "node:fs";
+import { readdirSync, existsSync, statSync, readFileSync } from "node:fs";
 import { join, basename } from "node:path";
+import { fileURLToPath } from "node:url";
 import { loadManifest } from "./manifest.js";
 import { readCsv } from "./csv.js";
 import { Bm25 } from "./insight.js";
@@ -21,10 +22,11 @@ import { paymentModeFromEnv } from "./x402.js";
 interface ProviderApp {
   name: string;
   host?: string;       // optional explicit host pattern, e.g. "pharma-fda.feed402.dev"
-  app: ReturnType<typeof buildServer>;
+  app: Awaited<ReturnType<typeof buildServer>>;
   rows: number;
   chunks: number;
   manifestUrl: string;
+  license: string;
 }
 
 export interface MultiOpts {
@@ -49,7 +51,7 @@ export async function loadAllProviders(opts: MultiOpts): Promise<ProviderApp[]> 
     const chunksPath = join(dir, "chunks.jsonl");
     const bm25 = Bm25.fromJsonl(chunksPath);
     const payment = paymentModeFromEnv(opts.enforce, manifest.chain);
-    const app = buildServer({
+    const app = await buildServer({
       dataset: { provider: manifest.name, defaultLicense: manifest.citation_policy, rows, chunks: [], manifest },
       bm25, payment,
     });
@@ -58,6 +60,7 @@ export async function loadAllProviders(opts: MultiOpts): Promise<ProviderApp[]> 
       host: opts.hostSuffix ? `${manifest.name}.${opts.hostSuffix}` : undefined,
       app, rows: rows.length, chunks: bm25.size,
       manifestUrl: `/.well-known/feed402.json`,
+      license: manifest.citation_policy,
     });
   }
   return out;
@@ -79,20 +82,60 @@ export function buildMultiHost(providers: ProviderApp[], opts: MultiOpts) {
     c.header("Access-Control-Allow-Origin", "*");
     c.header("Access-Control-Allow-Headers", "x-payment, content-type");
     c.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    c.header("Access-Control-Expose-Headers", "www-authenticate");
+    c.header("Access-Control-Expose-Headers", "www-authenticate, x-payment-response, payment-required");
     if (c.req.method === "OPTIONS") return c.body(null, 204);
     await next();
   });
 
-  // Global root: index of every provider on this host.
-  top.get("/", (c) => c.json({
+  // Static asset paths — landing/ and viz/ ship alongside dist/.
+  // dist/ lives at packages/ingest-harness/dist; landing & viz at the parent.
+  const HERE = fileURLToPath(new URL(".", import.meta.url));
+  const LANDING = join(HERE, "..", "landing");
+  const VIZ = join(HERE, "..", "viz");
+
+  const indexPayload = () => ({
     spec: "feed402/0.2",
     providers: providers.map(p => ({
       name: p.name, host: p.host, rows: p.rows, chunks: p.chunks,
       manifest: p.host ? `https://${p.host}/.well-known/feed402.json` : `/p/${p.name}/.well-known/feed402.json`,
+      license: p.license,
     })),
     host_suffix: opts.hostSuffix ?? null,
-  }));
+  });
+
+  // JSON index (machine-readable, for clients/agents)
+  top.get("/index.json", (c) => c.json(indexPayload()));
+
+  // Human-readable landing page (HTML)
+  top.get("/", (c) => {
+    const path = join(LANDING, "index.html");
+    if (existsSync(path)) {
+      c.header("Content-Type", "text/html; charset=utf-8");
+      return c.body(readFileSync(path, "utf8"));
+    }
+    return c.json(indexPayload()); // fallback if landing/ wasn't bundled
+  });
+
+  // Globe viz (deck.gl + maplibre)
+  top.get("/viz", (c) => c.redirect("/viz/", 301));
+  top.get("/viz/", (c) => {
+    const path = join(VIZ, "index.html");
+    if (!existsSync(path)) return c.json({ error: "viz_not_bundled" }, 404);
+    c.header("Content-Type", "text/html; charset=utf-8");
+    return c.body(readFileSync(path, "utf8"));
+  });
+  top.get("/viz/:file", (c) => {
+    const file = c.req.param("file");
+    if (!/^[\w.\-]+$/.test(file)) return c.json({ error: "bad_path" }, 400);
+    const path = join(VIZ, file);
+    if (!existsSync(path)) return c.json({ error: "not_found" }, 404);
+    const ext = file.split(".").pop()!.toLowerCase();
+    const ct = ext === "css" ? "text/css" : ext === "js" || ext === "mjs" ? "application/javascript"
+            : ext === "json" ? "application/json" : ext === "html" ? "text/html; charset=utf-8"
+            : "application/octet-stream";
+    c.header("Content-Type", ct);
+    return c.body(readFileSync(path));
+  });
   top.get("/health/global", (c) => c.json({
     ok: true, providers: providers.length,
     rows_total: providers.reduce((s, p) => s + p.rows, 0),

@@ -83,7 +83,7 @@ await (async () => {
   // Server smoke: payment enforced returns 402 with WWW-Authenticate
   const m = loadManifest(dir + "manifest.yaml");
   const idx = Bm25.fromJsonl(dir + "chunks.jsonl");
-  const app = buildServer({
+  const app = await buildServer({
     dataset: { provider: m.name, defaultLicense: m.citation_policy, rows, chunks: [], manifest: m },
     bm25: idx,
     payment: { enforce: true, network: m.chain, verifier: "stub" },
