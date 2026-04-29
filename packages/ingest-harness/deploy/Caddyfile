@@ -1,35 +1,26 @@
-# feed402.dev wildcard reverse proxy.
-# All <provider>.feed402.dev names route to the multi-tenant Node server, which
-# inspects the Host header and dispatches to the right provider.
+# feed402.agfarms.dev — single subdomain, path-based provider routing.
+# Reuses the existing AGFarms wildcard cert pattern (same Hetzner CPX42, same
+# Cloudflare DNS). No new domain required.
 #
-# Place this on the same Hetzner box as the x402-research-gateway; Caddy
-# auto-issues wildcard cert via DNS-01 (CLOUDFLARE_API_TOKEN env var required).
-#
-# *.feed402.dev    → ingest-harness:4400
-# feed402.dev       → static landing page (the multi-host index at /)
+# Routes:
+#   feed402.agfarms.dev/                        provider index
+#   feed402.agfarms.dev/health/global           combined health
+#   feed402.agfarms.dev/p/<provider>/raw        per-provider tiers
+#   feed402.agfarms.dev/p/<provider>/query
+#   feed402.agfarms.dev/p/<provider>/insight
+#   feed402.agfarms.dev/p/<provider>/.well-known/feed402.json
 
-{
-	# Wildcard requires DNS-01. Cloudflare is the AGFarms standard.
-	acme_dns cloudflare {env.CLOUDFLARE_API_TOKEN}
-}
-
-*.feed402.dev, feed402.dev {
+feed402.agfarms.dev {
 	reverse_proxy ingest-harness:4400 {
 		header_up Host {http.request.host}
 		header_up X-Forwarded-Host {http.request.host}
 	}
 
-	# Surface the WWW-Authenticate header from 402 responses through the proxy.
+	# Surface 402 challenges + payment header through the proxy.
 	header {
 		Access-Control-Allow-Origin *
 		Access-Control-Allow-Headers "x-payment, content-type"
 		Access-Control-Expose-Headers "www-authenticate"
 		Access-Control-Allow-Methods "GET, POST, OPTIONS"
 	}
-}
-
-# x402-research-gateway companion (optional — only if co-locating).
-# The harness uses this as its facilitator when FEED402_FACILITATOR_URL is set.
-gateway.feed402.dev {
-	reverse_proxy x402-gateway:8091
 }

@@ -1,15 +1,10 @@
-# feed402 production stack.
+# feed402.agfarms.dev production stack.
 #
-# Two services:
-#   ingest-harness   the multi-tenant feed402 server (this package)
-#   caddy            wildcard *.feed402.dev TLS + reverse proxy
+# Single-subdomain deploy, path-based provider routing. Drops onto the existing
+# AGFarms Hetzner CPX42 box alongside Caddy + the x402 gateway.
 #
-# Optional third service to co-locate the x402 facilitator:
-#   x402-gateway     ../x402-research-gateway, exposes /verify
-#
-# Required env (drop into deploy/.env):
-#   CLOUDFLARE_API_TOKEN   for DNS-01 wildcard cert
-#   FEED402_FACILITATOR_URL=https://gateway.feed402.dev/x402   (or empty for stub mode)
+# Required env (deploy/.env):
+#   FEED402_FACILITATOR_URL=https://x402-research.agfarms.dev/x402   # or leave empty for stub mode
 services:
   ingest-harness:
     build:
@@ -19,6 +14,7 @@ services:
     restart: unless-stopped
     environment:
       FEED402_FACILITATOR_URL: ${FEED402_FACILITATOR_URL:-}
+    # No --host-suffix → everything routed via /p/<provider>/...
     command:
       - "node"
       - "dist/serve-all.js"
@@ -26,8 +22,6 @@ services:
       - "./datasets"
       - "--port"
       - "4400"
-      - "--host-suffix"
-      - "feed402.dev"
     expose:
       - "4400"
     networks:
@@ -41,25 +35,12 @@ services:
     ports:
       - "80:80"
       - "443:443"
-    environment:
-      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     networks:
       - feed402
-
-  # Optional: co-locate x402 facilitator. Comment out if running separately.
-  # x402-gateway:
-  #   image: ghcr.io/agfarms/x402-research-gateway:latest
-  #   restart: unless-stopped
-  #   environment:
-  #     CHAIN: base-sepolia
-  #   expose:
-  #     - "8091"
-  #   networks:
-  #     - feed402
 
 networks:
   feed402:

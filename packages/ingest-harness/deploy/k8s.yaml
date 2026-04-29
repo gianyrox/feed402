@@ -1,5 +1,5 @@
-# feed402 K3s manifest. Drops into the AGFarms Hetzner CPX42 cluster.
-# Wildcard cert handled by cert-manager + a DNS-01 issuer (Cloudflare).
+# feed402.agfarms.dev — K3s manifest for the AGFarms Hetzner cluster.
+# Reuses the cluster-issuer + ingress-nginx that the rest of *.agfarms.dev uses.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
         - name: app
-          image: feed402/ingest-harness:0.1.0
+          image: farmera/feed402-ingest-harness:0.1.0
           imagePullPolicy: IfNotPresent
           args:
             - "node"
@@ -30,8 +30,6 @@ spec:
             - "./datasets"
             - "--port"
             - "4400"
-            - "--host-suffix"
-            - "feed402.dev"
           ports:
             - containerPort: 4400
           env:
@@ -67,11 +65,10 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: feed402-wildcard
+  name: feed402
   namespace: feed402
   annotations:
-    cert-manager.io/cluster-issuer: cloudflare-dns
-    nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/cors-allow-origin: "*"
     nginx.ingress.kubernetes.io/cors-allow-headers: "x-payment, content-type"
     nginx.ingress.kubernetes.io/cors-expose-headers: "www-authenticate"
@@ -79,16 +76,10 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-    - hosts: [ "feed402.dev", "*.feed402.dev" ]
-      secretName: feed402-wildcard-tls
+    - hosts: [ "feed402.agfarms.dev" ]
+      secretName: feed402-agfarms-tls
   rules:
-    - host: "feed402.dev"
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend: { service: { name: ingest-harness, port: { number: 4400 } } }
-    - host: "*.feed402.dev"
+    - host: "feed402.agfarms.dev"
       http:
         paths:
           - path: /

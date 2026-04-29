@@ -72,8 +72,18 @@ const LAYERS = [
   { id: "pharma-fda",      port: 4403, color: [220, 120, 220], label: "FDA approvals" },
 ];
 
+// Default points at the production single-subdomain deploy at feed402.agfarms.dev.
+// Override per-layer via ?world-history=http://localhost:4404, or all-at-once via ?api=http://localhost:4400 for local dev.
 const params = new URLSearchParams(location.search);
-const baseFor = (id) => params.get(id) ?? params.get("api") ?? `http://localhost:${LAYERS.find(l=>l.id===id).port}`;
+const PROD_BASE = "https://feed402.agfarms.dev";
+const baseFor = (id) => {
+  const explicit = params.get(id);
+  if (explicit) return explicit;
+  const apiBase = params.get("api");
+  if (apiBase) return `${apiBase}/p/${id}`;          // multi-tenant local dev
+  if (params.get("local")) return `http://localhost:${LAYERS.find(l=>l.id===id).port}`;  // legacy per-port dev
+  return `${PROD_BASE}/p/${id}`;                     // production default
+};
 const X_PAYMENT = btoa(JSON.stringify({ tx: "0xviz-demo", payer: "0xviz-client" }));
 const headers = { "x-payment": X_PAYMENT };
 
